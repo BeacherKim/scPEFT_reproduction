@@ -20,9 +20,9 @@ Scripts to reproduce results obtained in the manuscript
     │    └── marker_gene_detection ......
     
     ├── script              
-    │    ├── TReproduction_Identification.ipynb
+    │    ├── Reproduction_Identification.ipynb
     │    ├── Reproduction_MarkerGeneDetection.ipynb
-    │    ├── TReproduction_CellPopulationDiscovery.ipynb
+    │    ├── Reproduction_CellPopulationDiscovery.ipynb
     │    ├── Reproduction_BatchCorrection.ipynb
     │    ├── Reproduction_Perturbation.ipynb
     │    └── human_transcription_factors.txt
