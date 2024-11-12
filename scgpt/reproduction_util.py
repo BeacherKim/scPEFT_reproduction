@@ -80,7 +80,7 @@ def load_and_process_data(
         data_is_raw = False
         celltype_key = "celltype"
         adata = load_adata(data_dir, fold_index, dataset_name, celltype_key)
-    elif dataset_name == "COVID-19":
+    elif dataset_name == "COVID":
         data_dir = Path(f"../data/celltype_identification/{dataset_name}")
 
         data_is_raw = True
