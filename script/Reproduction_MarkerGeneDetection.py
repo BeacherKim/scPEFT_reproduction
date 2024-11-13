@@ -51,7 +51,7 @@ os.environ["KMP_WARNINGS"] = "off"
 warnings.filterwarnings('ignore')
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset_name", type=str, default='COVID-19',help='dataset name ')
+parser.add_argument("--dataset_name", type=str, default='COVID',help='dataset name ')
 parser.add_argument("--model_path", type=str, default='../checkpoint/marker_gene_detection',help='the path of checkpoint')
 parser.add_argument("--data_path", type=str, default='../data/',help='the Path of data')
 parser.add_argument("--peft_type", type=str, default='Encoder_adapter',help=' Encoder_adapter/ Token_adapter / Prefix / LoRA / finetune')
@@ -126,7 +126,7 @@ include_zero_gene = config.include_zero_gene
 dataset_name = config.dataset_name
 logger = scg.logger
 data_dir = config.data_path
-if dataset_name == 'COVID-19':
+if dataset_name == 'COVID':
     adata = sc.read(f"{data_dir}/{dataset_name}_test0.h5ad")
     n_hvg = False
     data_is_raw = True
