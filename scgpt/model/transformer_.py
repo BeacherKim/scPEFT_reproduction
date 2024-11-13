@@ -519,7 +519,7 @@ class TransformerEncoderLayer(Module):
         self.prompt_dropout = Dropout(self.DROPOUT)
         self.prompt_proj = nn.Identity()
 
-        if self.use_prompt and "LoRA" in self.prompt_type :
+        if self.use_prompt and "LoRA" in self.prompt_type and self.space_adapter_conf[self.block_number] :
             from .activation_for_LoRA import MultiheadAttention
 
         else:

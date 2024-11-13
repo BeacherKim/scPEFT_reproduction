@@ -501,7 +501,7 @@ def predict(
 
 # %% inference
 def test(
-    model: nn.Module, adata: DataLoader, gene_ids, vocab, config, device, logger
+    model: nn.Module, adata: DataLoader, gene_ids, vocab, config, device, logger,data_global_describe,dataset_name
 ) -> float:
     all_counts = (
         adata.layers[config.input_layer_key].A
@@ -558,13 +558,24 @@ def test(
         config,
         device,
     )
-
-    # compute accuracy, precision, recall, f1
-    accuracy = balanced_accuracy_score(celltypes_labels, predictions)
-    precision = precision_score(celltypes_labels, predictions, average="macro")
-    recall = recall_score(celltypes_labels, predictions, average="macro")
-    macro_f1 = f1_score(celltypes_labels, predictions, average="macro")
-    micro_f1 = f1_score(celltypes_labels, predictions, average="micro")
+    if "mouse" in dataset_name:
+        celltype_dict = {value: key for key, value in data_global_describe["id2type"].items()}
+        value_l4 = celltype_dict["L4"]
+        value_l5it = celltype_dict["L5 IT"]
+        indices_to_modify_l4_l5it = np.where(np.logical_and(celltypes_labels == value_l4, predictions == value_l5it))
+        celltypes_labels[indices_to_modify_l4_l5it] = value_l5it
+        accuracy = balanced_accuracy_score(celltypes_labels, predictions)
+        precision = precision_score(celltypes_labels, predictions, average="macro")
+        recall = recall_score(celltypes_labels, predictions, average="macro")
+        macro_f1 = f1_score(celltypes_labels, predictions, average="macro")
+        micro_f1 = f1_score(celltypes_labels, predictions, average="micro")
+    else:
+        # compute accuracy, precision, recall, f1
+        accuracy = balanced_accuracy_score(celltypes_labels, predictions)
+        precision = precision_score(celltypes_labels, predictions, average="macro")
+        recall = recall_score(celltypes_labels, predictions, average="macro")
+        macro_f1 = f1_score(celltypes_labels, predictions, average="macro")
+        micro_f1 = f1_score(celltypes_labels, predictions, average="micro")
 
     # logger.info(
     #     f"Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, "

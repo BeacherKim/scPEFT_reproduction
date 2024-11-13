@@ -49,8 +49,9 @@ def load_adata(data_dir, fold, dataset, celltype_key):
     adata_test.obs["celltype"] = adata_test.obs[celltype_key].astype("category")
 
     adata.obs["batch_id"] = adata.obs["str_batch"] = "0"
-    adata_val.obs["batch_id"] = adata_val.obs["str_batch"] = "1"
-    adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "2"
+    adata_test.obs["batch_id"] = adata_test.obs["str_batch"] = "1"
+    adata_val.obs["batch_id"] = adata_val.obs["str_batch"] = "2"
+
     if dataset=="elegans":
         adata = adata[~(adata.obs["celltype"]=="NA")]
         adata_val = adata_val[~(adata_val.obs["celltype"]=="NA")]
@@ -63,7 +64,7 @@ def load_adata(data_dir, fold, dataset, celltype_key):
         adata_val.var.set_index(adata_val.var["gene_name"], inplace=True)
         adata_test.var.set_index(adata_test.var["gene_name"], inplace=True)
 
-    adata = adata.concatenate((adata_val, adata_test), batch_key="str_batch")
+    adata = adata.concatenate((adata_test,adata_val), batch_key="str_batch")
     return adata
 
 
@@ -162,8 +163,8 @@ def load_and_process_data(
         result_binned_key="X_binned",  # the key in adata.layers to store the binned data
     )
     preprocessor(adata, batch_key=None)
-    adata_test = adata[adata.obs["str_batch"] == "2"]
-    adata = adata[adata.obs["str_batch"] != "2"]
+    adata_test = adata[adata.obs["str_batch"] == "1"]
+    adata = adata[adata.obs["str_batch"] != "1"]
 
     # preprocessor(adata, batch_key=None)
     # preprocessor(adata_test, batch_key=None)
@@ -184,7 +185,7 @@ def load_and_process_data(
     train_batch_labels = adata[adata.obs["str_batch"] == "0"].obs["batch_id"].values
     valid_batch_labels = adata[adata.obs["str_batch"] == "1"].obs["batch_id"].values
 
-    adata_val = adata[adata.obs["str_batch"] == "1"]
+    adata_val = adata[adata.obs["str_batch"] == "2"]
     adata = adata[adata.obs["str_batch"] == "0"]
 
     train_data = (
