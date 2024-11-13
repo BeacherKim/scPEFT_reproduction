@@ -25,7 +25,7 @@ Scripts to reproduce results obtained in the manuscript
     │    ├── Reproduction_CellPopulationDiscovery.ipynb
     │    ├── Reproduction_BatchCorrection.ipynb
     │    ├── Reproduction_Perturbation.ipynb
-    │    └── human_transcription_factors.txt
+    │    └── human_transcription_factors.txt .......
     
     ├──  scgpt      
     
