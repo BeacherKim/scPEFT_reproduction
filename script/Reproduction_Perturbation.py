@@ -177,16 +177,21 @@ if config.load_model is not None:
         use_flash_attn = getattr(model, "use_fast_transformer", True)
         pretrained_dict = torch.load(model_file, map_location='cpu')
 
-        pretrained_dict = {
-            k.replace("Wqkv.", "in_proj_"): v for k, v in pretrained_dict.items()
-        }
+        # if not use_flash_attn and prompt_type != "LoRA":
+        #     pretrained_dict = {
+        #         k.replace("Wqkv.", "in_proj_"): v for k, v in pretrained_dict.items()
+        #     }
+
+        # if not use_flash_attn and prompt_type == "LoRA":
+        #     for idx, conf in enumerate(space_adapter_conf):
+        #         if not conf:
+        #             pretrained_dict = {
+        #                 k.replace("Wqkv.", "in_proj_") if f"transformer_encoder.layers.{idx}.self_attn" in k else k: v
+        #                 for k, v in pretrained_dict.items()
+        #             }
 
         model_dict = model.state_dict()
-        not_in_pretrained_dict = {
-            k: v
-            for k, v in model_dict.items()
-            if not (k in pretrained_dict and v.shape == model_dict[k].shape)
-        }
+
         pretrained_dict = {
             k: v
             for k, v in pretrained_dict.items()
@@ -249,4 +254,5 @@ def eval_perturb(
 test_loader = pert_data.dataloader["test_loader"]
 test_res = eval_perturb(test_loader, model, device)
 test_metrics, test_pert_res = compute_metrics(test_res)
-print(test_metrics)
+for k, v in test_metrics:
+    print(f"{k} -> {v}")
