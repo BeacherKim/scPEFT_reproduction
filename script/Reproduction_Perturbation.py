@@ -254,5 +254,5 @@ def eval_perturb(
 test_loader = pert_data.dataloader["test_loader"]
 test_res = eval_perturb(test_loader, model, device)
 test_metrics, test_pert_res = compute_metrics(test_res)
-for k, v in test_metrics:
+for k, v in test_metrics.items():
     print(f"{k} -> {v}")
