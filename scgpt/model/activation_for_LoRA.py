@@ -130,6 +130,7 @@ class MultiheadAttention(Module):
             self.register_parameter('in_proj_weight', None)
         else:
             self.Wqkv = lora.MergedLinear(embed_dim, 3 * embed_dim, r=8, enable_lora=[True, False, True])
+
             self.register_parameter('q_proj_weight', None)
             self.register_parameter('k_proj_weight', None)
             self.register_parameter('v_proj_weight', None)
@@ -186,9 +187,6 @@ class MultiheadAttention(Module):
             check_other=False,
         )
 
-        self.in_proj_weight = self.Wqkv.weight
-        self.in_proj_bias = self.Wqkv.bias
-
         if not is_batched:
             why_not_fast_path = f"input not batched; expected query.dim() of 3 but got {query.dim()}"
         elif query is not key or key is not value:
@@ -196,13 +194,13 @@ class MultiheadAttention(Module):
             # enforce that the dtypes all match or test cases where
             # they don't!
             why_not_fast_path = "non-self attention was used (query, key, and value are not the same Tensor)"
-        elif self.in_proj_bias is not None and query.dtype != self.in_proj_bias.dtype:
-            why_not_fast_path = f"dtypes of query ({query.dtype}) and self.in_proj_bias ({self.in_proj_bias.dtype}) don't match"
-        elif self.in_proj_weight is None:
+        elif self.Wqkv.bias is not None and query.dtype != self.Wqkv.bias.dtype:
+            why_not_fast_path = f"dtypes of query ({query.dtype}) and self.Wqkv.bias ({self.Wqkv.bias.dtype}) don't match"
+        elif self.Wqkv.weight is None:
             why_not_fast_path = "in_proj_weight was None"
-        elif query.dtype != self.in_proj_weight.dtype:
+        elif query.dtype != self.Wqkv.weight.dtype:
             # this case will fail anyway, but at least they'll get a useful error message.
-            why_not_fast_path = f"dtypes of query ({query.dtype}) and self.in_proj_weight ({self.in_proj_weight.dtype}) don't match"
+            why_not_fast_path = f"dtypes of query ({query.dtype}) and self.Wqkv.weight ({self.Wqkv.weight.dtype}) don't match"
         elif self.training:
             why_not_fast_path = "training is enabled"
         elif (self.num_heads % 2) != 0:
@@ -228,8 +226,8 @@ class MultiheadAttention(Module):
                 query,
                 key,
                 value,
-                self.in_proj_weight,
-                self.in_proj_bias,
+                self.Wqkv.weight,
+                self.Wqkv.bias,
                 self.out_proj.weight,
                 self.out_proj.bias,
             )
@@ -248,15 +246,15 @@ class MultiheadAttention(Module):
             if not why_not_fast_path:
                 merged_mask, mask_type = self.merge_masks(attn_mask, key_padding_mask, query)
 
-                if self.in_proj_bias is not None and self.in_proj_weight is not None:
+                if self.Wqkv.bias is not None and self.Wqkv.weight is not None:
                     return torch._native_multi_head_attention(
                         query,
                         key,
                         value,
                         self.embed_dim,
                         self.num_heads,
-                        self.in_proj_weight,
-                        self.in_proj_bias,
+                        self.Wqkv.weight,
+                        self.Wqkv.bias,
                         self.out_proj.weight,
                         self.out_proj.bias,
                         merged_mask,
@@ -282,7 +280,7 @@ class MultiheadAttention(Module):
         if not self._qkv_same_embed_dim:
             attn_output, attn_output_weights = F.multi_head_attention_forward(
                 query, key, value, self.embed_dim, self.num_heads,
-                self.in_proj_weight, self.in_proj_bias,
+                self.Wqkv.weight, self.Wqkv.bias,
                 self.bias_k, self.bias_v, self.add_zero_attn,
                 self.dropout, self.out_proj.weight, self.out_proj.bias,
                 training=self.training,
@@ -296,7 +294,7 @@ class MultiheadAttention(Module):
         else:
             attn_output, attn_output_weights = multi_head_attention_forward(
                 query, key, value, self.embed_dim, self.num_heads,
-                self.in_proj_weight, self.in_proj_bias,
+                self.Wqkv.weight, self.Wqkv.bias,
                 self.bias_k, self.bias_v, self.add_zero_attn,
                 self.dropout, self.out_proj.weight, self.out_proj.bias,
                 training=self.training,
