@@ -23,6 +23,74 @@ from ..utils import map_raw_id_to_vocab_id
 from .. import logger
 
 
+class AffineExprDecoder(nn.Module):
+    def __init__(
+            self,
+            d_model: int,
+            explicit_zero_prob: bool = False,
+            activation: Optional[str] = None,
+            tanh_coeff: bool = False,
+            adaptive_bias: bool = False,
+    ):
+        """
+        Predict the expression value of each gene in an affine like form of Ax + b.
+        This decoder takes two ExprDecoder intrinsically to genrate the coefficient A and bias b.
+
+        Args:
+            d_model: The embedding dimension.
+            explicit_zero_prob: If True, predict the probability of each gene being
+                zero.
+            activation: The activation function for the coefficient A and bias b.
+            tanh_coeff: If True, use tanh activation for the coefficient A.
+            adaptive_bias: If True, use a learnable bias for the bias b.
+        """
+        super().__init__()
+        self.explicit_zero_prob = explicit_zero_prob
+        self.tanh_coeff = tanh_coeff
+        self.adaptive_bias = adaptive_bias
+        self.coeff_decoder = ExprDecoder(d_model, explicit_zero_prob=explicit_zero_prob)
+        self.bias_decoder = ExprDecoder(d_model, explicit_zero_prob=explicit_zero_prob)
+
+        self.activation = activation
+        if activation is not None:
+            assert hasattr(nn, activation), f"Unknown activation: {activation}"
+            self.activation = getattr(nn, activation)()
+
+    def forward(self, x: Tensor, values: Tensor) -> Tensor:
+        """
+        Args:
+            x: Tensor, shape [batch_size, seq_len, embsize]
+            values: Tensor, shape [batch_size, seq_len]
+
+        Returns:
+            output Tensor of shape [batch_size, seq_len]
+        """
+        coeff = self.coeff_decoder(x)
+        bias = self.bias_decoder(x)
+
+        if self.activation is not None:
+            coeff["pred"] = self.activation(coeff["pred"])
+            bias["pred"] = self.activation(bias["pred"])
+
+        # if self.tanh_coeff:
+        #     coeff["pred"] = 1 + torch.tanh(coeff["pred"])
+
+        if self.adaptive_bias:
+            # bias["pred"] = bias["pred"] * values.mean(dim=1, keepdim=True)
+            non_zero_value_mean = values.sum(dim=1, keepdim=True) / (values != 0).sum(
+                dim=1, keepdim=True
+            )
+            bias["pred"] = bias["pred"] * non_zero_value_mean
+
+        if self.explicit_zero_prob:
+            return {
+                "pred": coeff["pred"] * values + bias["pred"],
+                "zero_probs": coeff["zero_probs"],
+            }
+
+        return dict(pred=coeff["pred"] * values + bias["pred"])
+
+
 class TransformerGenerator(nn.Module):
     def __init__(
             self,
@@ -97,8 +165,9 @@ class TransformerGenerator(nn.Module):
                                                     )
         self.pert_encoder = nn.Embedding(3, d_model, padding_idx=pert_pad_id)
 
-        print("Using simple batchnorm instead of domain specific batchnorm")
-        self.bn = nn.BatchNorm1d(d_model, eps=6.1e-5)
+        if self.prompt_type not in ["LoRA", "prefix-prompt"]:
+            print("Using simple batchnorm instead of domain specific batchnorm")
+            self.bn = nn.BatchNorm1d(d_model, eps=6.1e-5)
 
         if use_fast_transformer:
             if fast_transformer_backend == "linear":
@@ -140,10 +209,19 @@ class TransformerGenerator(nn.Module):
             )
 
         # self.decoder = nn.Linear(d_model, 1)
-        self.decoder = ExprDecoder(
-            d_model,
-            explicit_zero_prob=explicit_zero_prob,
-        )
+        if self.prompt_type in ["LoRA", "prefix-prompt"]:
+            self.decoder = AffineExprDecoder(
+                d_model,
+                explicit_zero_prob=explicit_zero_prob,
+                activation=None,
+                adaptive_bias=False,
+            )
+        else:
+            self.decoder = ExprDecoder(
+                d_model,
+                explicit_zero_prob=explicit_zero_prob,
+            )
+
         # self.cls_decoder = ClsDecoder(d_model, n_cls, nlayers=nlayers_cls)
         if do_mvc:
             self.mvc_decoder = MVCDecoder(
@@ -174,7 +252,8 @@ class TransformerGenerator(nn.Module):
         perts = self.pert_encoder(input_pert_flags)  # (batch, seq_len, embsize)
         total_embs = src + values + perts
 
-        total_embs = self.bn(total_embs.permute(0, 2, 1)).permute(0, 2, 1)
+        if self.prompt_type not in ["LoRA", "prefix-prompt"]:
+            total_embs = self.bn(total_embs.permute(0, 2, 1)).permute(0, 2, 1)
         output = self.transformer_encoder(
             total_embs, src_key_padding_mask=src_key_padding_mask
         )
@@ -244,7 +323,11 @@ class TransformerGenerator(nn.Module):
             src, values, input_pert_flags, src_key_padding_mask
         )
         output = {}
-        mlm_output = self.decoder(transformer_output)
+        if self.prompt_type not in ["LoRA", "prefix-prompt"]:
+            mlm_output = self.decoder(transformer_output)
+        else:
+            mlm_output = self.decoder(transformer_output, values)
+
         if self.explicit_zero_prob and do_sample:
             bernoulli = Bernoulli(probs=mlm_output["zero_probs"])
             output["mlm_output"] = bernoulli.sample() * mlm_output["pred"]
