@@ -237,8 +237,18 @@ if config.load_model is not None:
         model.load_state_dict(torch.load(model_file, map_location=device))
         print(f"Loading all model params from {model_file}")
     except Exception as e:
-        traceback.print_exc()
-        print(e)
+        use_flash_attn = getattr(model, "use_fast_transformer", True)
+        pretrained_dict = torch.load(model_file, map_location='cpu')
+        model_dict = model.state_dict()
+
+        pretrained_dict = {
+            k: v
+            for k, v in pretrained_dict.items()
+            if k in model_dict and v.shape == model_dict[k].shape
+        }
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
+        print("Check the results, if there are some problems please contact the developer")
 
 model.to(device)
 
