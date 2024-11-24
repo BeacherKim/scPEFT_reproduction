@@ -44,6 +44,12 @@ sc.set_figure_params(figsize=(4, 4))
 os.environ["KMP_WARNINGS"] = "off"
 warnings.filterwarnings('ignore')
 
+# key_parameters = dict(
+#     dataset_name="PBMC_10K",  # Dataset name
+#     load_model="../save/batch_correction",  # Path to peft model
+#     data_path="../data/batch_correction",
+#     peft_type="Encoder_adapter"  # Encoder_adapter/ Token_adapter / Prefix / LoRA / finetune
+# )
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_name", type=str, help='Dataset name')
@@ -63,7 +69,7 @@ hyperparameter_defaults = dict(
     epochs=40,  # Default number of epochs for fine-tuning
     n_bins=51,  # Default number of bins for value binning in data pre-processing
     lr=1e-4,  # Default learning rate for fine-tuning
-    batch_size=20,  # Default batch size for fine-tuning
+    batch_size=64,  # Default batch size for fine-tuning
     layer_size=128,
     nlayers=4,
     nhead=4,  # if load model, batch_size, layer_size, nlayers, nhead will be ignored
@@ -74,7 +80,7 @@ hyperparameter_defaults = dict(
     fast_transformer=False,  # Default setting
     pre_norm=False,  # Default setting
     amp=True,  # # Default setting: Automatic Mixed Precision
-    num_tokens=2000,
+    num_tokens=200,
     n_layers_conf=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  # token
     mlp_adapter_conf=[1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
     space_adapter_conf=[1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
@@ -258,8 +264,18 @@ if config.load_model is not None:
         model.load_state_dict(torch.load(model_file, map_location=device))
         print(f"Loading all model params from {model_file}")
     except Exception as e:
-        traceback.print_exc()
-        print(e)
+        use_flash_attn = getattr(model, "use_fast_transformer", True)
+        pretrained_dict = torch.load(model_file, map_location='cpu')
+        model_dict = model.state_dict()
+
+        pretrained_dict = {
+            k: v
+            for k, v in pretrained_dict.items()
+            if k in model_dict and v.shape == model_dict[k].shape
+        }
+        model_dict.update(pretrained_dict)
+        model.load_state_dict(model_dict)
+        print("Check the results, if there are some problems please contact the developer")
 
 model.to(device)
 
@@ -329,27 +345,27 @@ def eval_testdata(
             traceback.print_exc()
             print(e)
 
-        sc.pp.neighbors(adata_t, use_rep="X_scGPT")
-        sc.tl.umap(adata_t, min_dist=0.3)
-        fig = sc.pl.umap(
-            adata_t,
-            color=["str_batch"],
-            title=[f"batch, avg_batch = {results.get('avg_batch', 0.0):.4f}"],
-            frameon=False,
-            show=True,
-        )
-
-        sc.pp.neighbors(adata_t, use_rep="X_scGPT")
-        sc.tl.umap(adata_t, min_dist=0.3)
-        fig = sc.pl.umap(
-            adata_t,
-            color=["celltype"],
-            title=[
-                f"celltype, avg_bio = {results.get('avg_bio', 0.0):.4f}",
-            ],
-            frameon=False,
-            show=True
-        )
+        # sc.pp.neighbors(adata_t, use_rep="X_scGPT")
+        # sc.tl.umap(adata_t, min_dist=0.3)
+        # fig = sc.pl.umap(
+        #     adata_t,
+        #     color=["str_batch"],
+        #     title=[f"batch, avg_batch = {results.get('avg_batch', 0.0):.4f}"],
+        #     frameon=False,
+        #     show=True,
+        # )
+        #
+        # sc.pp.neighbors(adata_t, use_rep="X_scGPT")
+        # sc.tl.umap(adata_t, min_dist=0.3)
+        # fig = sc.pl.umap(
+        #     adata_t,
+        #     color=["celltype"],
+        #     title=[
+        #         f"celltype, avg_bio = {results.get('avg_bio', 0.0):.4f}",
+        #     ],
+        #     frameon=False,
+        #     show=True
+        # )
 
     if len(include_types) == 1:
         return results
